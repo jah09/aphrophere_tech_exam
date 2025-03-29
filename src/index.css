@@ -1,1 +1,9 @@
 @import "tailwindcss";
+
+
+@theme{
+    /* boxShadow: {
+        'top-only': '0 -4px 6px rgba(0, 0, 0, 0.1)', // Shadow on the top side only
+      },  */
+       --box-shadow-top-only: 0 -4px 6px rgba(0, 0, 0, 0.1);
+}
