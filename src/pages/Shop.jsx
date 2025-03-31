@@ -1,10 +1,41 @@
 import { useEffect, useState } from 'react'
-import { MessageCircle, Heart, ShoppingCart, Star, MapPin } from 'lucide-react';
+import { MessageCircle, Heart, ShoppingCart } from 'lucide-react';
 import perfumes from '@/assets/product_images/perfumes.jfif'
 import { productService } from '@/api/productService';
+import { wishListService } from '@/api/wishListService';
+import { useSwipeable } from 'react-swipeable';
+import { cartService } from '@/api/cartService';
+import Product from '@/component/Product';
+
 const Shop = () => {
     const [products, setProducts] = useState([]);
-    console.log("prdoucts", products)
+    const [currentIndex, setCurrentIndex] = useState(0);
+    const [wishlist, setWishlist] = useState([]);
+    const [cartData, setCartData] = useState([]);
+    const userId = 'userId123'
+
+    const fetchWishlist = async () => {
+        try {
+            const wishlist = await wishListService.getWishlist(userId);
+            setWishlist(wishlist);
+        } catch (error) {
+            console.error(error.message);
+        }
+    }
+
+    const getCartData = async () => {
+        try {
+            const response = await cartService.getCartData();
+            setCartData({
+                cartLength: response.cartLength,
+                cartData: response.cartData,
+            });
+        } catch (error) {
+            console.error(error.message);
+        }
+    }
+
+    //Fetch the products
     useEffect(() => {
         const fetchProducts = async () => {
             try {
@@ -14,10 +45,91 @@ const Shop = () => {
                 console.error(error.message);
             }
         };
+
+        getCartData();
+        fetchWishlist();
         fetchProducts();
     }, []);
 
+    const handleSwipeLeft = () => {
+        // Skip the current product
+        if (currentIndex < products.length - 1) {
+            setCurrentIndex(currentIndex + 1);
+        } else {
+            setCurrentIndex(0); // Reset to the first product
+        }
+    };
 
+
+    //Handle swipe right (add to wishlist)
+    const handleSwipeRight = async () => {
+        const currentProduct = products[currentIndex];
+        const payload = {
+            userId: userId,
+            productId: products[currentIndex].id,
+            heart: true,
+            productName: products[currentIndex].name,
+        }
+        try {
+            // Check if the product is already in the wishlist
+            const isAlreadyInWishlist = wishlist.some((item) => item.productId === currentProduct.id);
+            if (isAlreadyInWishlist) {
+                console.log("Product is already in the wishlist");
+            } else {
+                // Add the product to the wishlist
+                await wishListService.createWishlist(payload);
+
+                // Fetch the updated wishlist
+                await fetchWishlist();
+            }
+        } catch (error) {
+            console.error("Error in handleSwipeRight:", error.message);
+        }
+
+        // Move to the next product
+        if (currentIndex < products.length - 1) {
+            setCurrentIndex(currentIndex + 1);
+        } else {
+            setCurrentIndex(0); // Reset to the first product
+        }
+    };
+
+    //Handle swipe up (add to cart)
+    const handleSwipeUp = async () => {
+        const currentProduct = products[currentIndex];
+
+        const payload = {
+            userId: userId,
+            productId: products[currentIndex].id,
+            productName: products[currentIndex].name,
+        }
+        try {
+            // Add the product to the cart
+            const isAlreadyInCart = cartData.cartData.some((item) => item.productId === currentProduct.id);
+            if (isAlreadyInCart) {
+                console.log("Product is already in the wishlist");
+            } else {
+                // Add the product to the wishlist
+                const response = await cartService.createCartData(payload);
+                console.log("handleSwipeUp response", response);
+
+                // Fetch the updated cart data
+                await getCartData();
+            }
+        }
+        catch (error) {
+            console.error("Error in handleSwipeUp:", error.message);
+        }
+
+    }
+
+    const handlers = useSwipeable({
+        onSwipedLeft: handleSwipeLeft,
+        onSwipedRight: handleSwipeRight,
+        onSwipedUp: handleSwipeUp,
+        preventDefaultTouchmoveEvent: true,
+        trackMouse: true,
+    });
     return (
         <div>
             {/* Header */}
@@ -33,7 +145,13 @@ const Shop = () => {
                         Swipe
                     </div>
                 </div>
-                <div>
+                <div className='relative  h-10 flex items-center'>
+                    {cartData.cartLength > 0 ? (
+                        <div className='absolute top-0 right-1 rounded-full w-[20px] h-[20px] flex items-center justify-center text-red-900 font-semibold'>
+                            {cartData.cartLength}
+                        </div>
+                    ) : null}
+                    {/* Cart icon */}
                     <ShoppingCart className='mr-4 text-[#E1A5AA] w-[22px] h-[22px]' />
                 </div>
             </div>
@@ -45,85 +163,18 @@ const Shop = () => {
             </div>
 
             {/* Products/Card */}
-            <div>
-                {products.map((product, index) => (
-                    <div key={index} className='relative rounded-[30px] h-[550px] w-[340px] mx-auto shadow-lg mb-10'>
-                        <img
-                            className='rounded-[30px] h-[500px] w-[340px]'
-                            src={product.image || perfumes}
-                            alt={product.name || "product image"} />
-
-                        {/* Heart icons */}
-                        <div className='absolute top-10 left-0 right-0 rounded-lg flex items-center justify-end '>
-                            <div className='bg-white rounded-lg w-[40px] h-[40px] flex justify-center items-center shadow-md text-black mr-10'>
-                                <Heart />
-                            </div>
-                        </div>
-
-                        {/* Description */}
-                        <div className='flex absolute bottom-0 left-0 right-0 h-[100px] rounded-b-[30px] items-center justify-center p-4 gap-x-8 shadow-top-only bg-gradient-to-b from-transparent via-[#E1A5AA]/100 via-30% to-[#E1A5AA]'>
-                            <div>
-                                <div className='flex gap-x-2'>
-                                    <span>
-                                        <MapPin className='text-white' />
-                                    </span>
-                                    <p className='text-white'>
-                                        {product.distance || "N/A"} away
-                                    </p>
-                                </div>
-                                <h1 className='font-bold text-[31px] text-white'>
-                                    {product.name || "Product Name"}
-                                </h1>
-                            </div>
-                            <div className='h-[41px] text-[#E1A5AA] rounded-[12px] flex gap-x-4 bg-white items-center w-[74px] px-2'>
-                                <Star className='font-semibold' />
-                                <p className='font-semibold'>
-                                    {product.rating || "0.0"}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                ))}
-                <div className='relative rounded-[30px] h-[550px] w-[340px] mx-auto shadow-lg'>
-                    <img
-                        className='rounded-[30px] h-[500px] w-[340px]  '
-                        src={perfumes}
-                        alt="product image" />
-
-                    {/* Heart icons */}
-                    <div className='absolute top-10 left-0 right-0   rounded-lg flex  items-center   justify-around'>
-                        <div className='bg-white rounded-lg w-[40px] h-[40px] flex justify-center items-center shadow-md'>
-                            <Heart />
-                        </div>
-                        <div className='bg-[#E1A5AA] rounded-lg w-[40px] h-[40px] flex justify-center items-center shadow-md text-white'>
-                            <Heart />
-                        </div>
-                    </div>
-
-                    {/* Description */}
-                    <div className='flex absolute bottom-0 left-0 right-0 h-[100px] rounded-b-[30px] items-center justify-center p-4 gap-x-8 shadow-top-only bg-gradient-to-b from-transparent via-[#E1A5AA]/100 via-30% to-[#E1A5AA]'>
-
-                        <div>
-                            <div className='flex gap-x-2'>
-                                <span>
-                                    <MapPin className='text-white' />
-                                </span>
-                                <p className='text-white'>
-                                    1.2km away
-                                </p>
-                            </div>
-                            <h1 className='font-bold text-[31px] text-white'>
-                                Pidia Beach
-                            </h1>
-                        </div>
-                        <div className='h-[41px] text-[#E1A5AA] rounded-[12px] flex gap-x-4 bg-white items-center w-[74px] px-2'>
-                            <Star className='font-semibold' />
-                            <p className='font-semibold'>
-                                4.9
-                            </p>
-                        </div>
-                    </div>
-                </div>
+            <div {...handlers} className='relative'>
+                {products.length > 0 && currentIndex < products.length ? (
+                    <Product
+                        products={products}
+                        currentIndex={currentIndex}
+                        wishlist={wishlist}
+                        cartData={cartData}
+                        perfumes={perfumes}
+                    />
+                ) : (
+                    <p className='text-center'>No more products to show!</p>
+                )}
             </div>
         </div>
     )
